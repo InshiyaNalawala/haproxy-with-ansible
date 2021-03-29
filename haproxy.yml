@@ -1,0 +1,65 @@
+- name: Configuring Webservers and Haproxy 
+  hosts: webservers
+  tasks:
+   - name: Installing httpd, php 
+     package: 
+       name: "{{ item }}"
+       state: present
+     with_items:
+     - httpd
+     - php 
+   
+   - name: Copying Content to Document root  
+     copy:
+       dest: "/var/www/html/index.php"
+       content: "<pre> <?php print `/usr/sbin/ifconfig` ?></pre>"
+
+   - name: Starting the httpd service 
+     service:
+       name: "httpd"
+       state: started
+
+   - name: Setting up Firewall
+     firewalld:
+       permanent: yes
+       immediate: no
+       port: 80/tcp
+       state: enabled
+     ignore_errors: yes 
+
+- name: Configure haproxy
+  hosts: LoadBalancer
+  tasks:
+   - name: Installing haproxy 
+     package: 
+       name: "haproxy"
+       state: present
+
+   - name: Starting the service
+     service:
+       name: "haproxy"
+       state: started
+
+   - name: Configuring the Firewall    
+     firewalld:
+       permanent: yes
+       immediate: no
+       port: 5000/tcp
+       state: enabled  
+     ignore_errors: yes
+
+   - name: Updating Configuration file to add Webservers and restart if required
+     template:
+       dest: /etc/haproxy/haproxy.cfg
+       src: ~/workspace/haproxy.cfg.j2
+     register: x
+
+   - name: Print variable
+     debug:
+       msg: "{{ x }}"
+  
+   - name: Restart the service 
+     service:
+       name: haproxy
+       state: restarted
+     when: x["changed"] == true
